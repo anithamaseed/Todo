@@ -40,14 +40,95 @@ const convertTodoDbObjectToResponseObject = (dbObject) => {
 };
 
 const convertDateObjToFormatDateObj = (dbObj) => {
-  let formatDate = format(
-    new Date(dbObj.getFullYear(), dbObj.getMonth(), dbObj.getDate()),
-    "yyyy-MM-dd"
-  );
+  let formatDate = format(new Date(dbObj), "yyyy-MM-dd");
   return formatDate;
 };
 
-//() API 2
+const hasPriorityAndStatus = (requestQuery) => {
+  return (
+    requestQuery.priority !== undefined && requestQuery.status !== undefined
+  );
+};
+const hasCategoryAndPriority = (requestQuery) => {
+  return (
+    requestQuery.priority !== undefined && requestQuery.category !== undefined
+  );
+};
+const hasCategoryAndStatus = (requestQuery) => {
+  return (
+    requestQuery.category !== undefined && requestQuery.status !== undefined
+  );
+};
+const hasCategory = (requestQuery) => {
+  return requestQuery.category !== undefined;
+};
+const hasStatus = (requestQuery) => {
+  return requestQuery.status !== undefined;
+};
+const hasPriority = (requestQuery) => {
+  return requestQuery.priority !== undefined;
+};
+const hasDueDate = (requestQuery) => {
+  return requestQuery.date !== undefined;
+};
+
+//API 1
+
+app.get("/todos/", async (request, response) => {
+  //let data = null;
+  let getTodosQuery = "";
+  const { search_q = "", category, priority, status, dueDate } = request.query;
+  let invalidColumn = "";
+  switch (true) {
+    case hasPriorityAndStatus(request.query):
+      getTodosQuery = `
+          select * from todo where todo like '%${search_q}%' and status='${status}' and priority='${priority}';`;
+      break;
+    case hasCategoryAndPriority(request.query):
+      getTodosQuery = `
+        select * from todo where todo like '%${search_q}%' and category='${category}' and priority='${priority}';`;
+      break;
+    case hasCategoryAndStatus(request.query):
+      getTodosQuery = `
+        select * from todo where todo like '%${search_q}%' and category='${category}' and status='${status}';`;
+      break;
+    case hasCategory(request.query):
+      invalidColumn = "Todo Category";
+      getTodosQuery = `
+        select * from todo where todo like '%${search_q}%' and category='${category}';`;
+      break;
+    case hasStatus(request.query):
+      invalidColumn = "Todo Status";
+      getTodosQuery = `
+          select * from todo where todo like '%${search_q}%' and status='${status}';`;
+      break;
+    case hasPriority(request.query):
+      invalidColumn = "Todo Priority";
+      getTodosQuery = `
+          select * from todo where todo like '%${search_q}%' and priority='${priority}';`;
+      break;
+    case hasDueDate(request.query):
+      invalidColumn = "Due Date";
+      getTodosQuery = `
+        select * from todo where todo like '%${search_q}%' and due_date=${dueDate};`;
+      break;
+    default:
+      getTodosQuery = `
+    select * from todo where todo like '%${search_q}%';`;
+  }
+
+  const data = await database.all(getTodosQuery);
+  if (data !== undefined) {
+    response.send(
+      data.map((each) => convertTodoDbObjectToResponseObject(each))
+    );
+  } else {
+    response.status(400);
+    response.send(`Invalid ${invalidColumn}`);
+  }
+});
+
+//API 2
 app.get("/todos/:todoId/", async (request, response) => {
   const { todoId } = request.params;
   const getTodoBasedOnId = `
@@ -81,6 +162,7 @@ app.delete("/todos/:todoId/", async (request, response) => {
 
 app.get("/agenda/", async (request, response) => {
   const { date } = request.query;
+  //const queryDate = new Date(date);
   let formatDate = convertDateObjToFormatDateObj(date);
   const getTodoBasedOnDate = `
     select * from todo where due_date=${formatDate};`;
@@ -136,88 +218,6 @@ app.put("/todos/:todoId/", async (request, response) => {
   response.send(`${updateColumn} Updated`);
 });
 
-//API 1
 
-const hasPriorityAndStatus = (requestQuery) => {
-  return (
-    requestQuery.priority !== undefined && requestQuery.status !== undefined
-  );
-};
-const hasCategoryAndPriority = (requestQuery) => {
-  return (
-    requestQuery.priority !== undefined && requestQuery.category !== undefined
-  );
-};
-const hasCategoryAndStatus = (requestQuery) => {
-  return (
-    requestQuery.category !== undefined && requestQuery.status !== undefined
-  );
-};
-const hasCategory = (requestQuery) => {
-  return requestQuery.category !== undefined;
-};
-const hasStatus = (requestQuery) => {
-  return requestQuery.status !== undefined;
-};
-const hasPriority = (requestQuery) => {
-  return requestQuery.priority !== undefined;
-};
-const hasDueDate = (requestQuery) => {
-  return requestQuery.date !== undefined;
-};
-
-//API 1
-
-app.get("/todos/", async (request, response) => {
-  let data = null;
-  let getTodosQuery = "";
-  const { search_q = "", category, priority, status, dueDate } = request.query;
-  let invalidColumn = "";
-  switch (true) {
-    case hasPriorityAndStatus(request.query):
-      getTodosQuery = `
-          select * from todo where todo like '%${search_q}%' and status='${status}' and priority='${priority}';`;
-      break;
-    case hasCategoryAndPriority(request.query):
-      getTodosQuery = `
-        select * from todo where todo like '%${search_q}%' and category='${category}' and priority='${priority}';`;
-      break;
-    case hasCategoryAndStatus(request.query):
-      getTodosQuery = `
-        select * from todo where todo like '%${search_q}%' and category='${category}' and status='${status}';`;
-      break;
-    case hasCategory(request.query):
-      invalidColumn = "Todo Category";
-      getTodosQuery = `
-        select * from todo where todo like '%${search_q}%' and category='${category}';`;
-      break;
-    case hasStatus(request.query):
-      invalidColumn = "Todo Status";
-      getTodosQuery = `
-          select * from todo where todo like '%${search_q}%' and status='${status}';`;
-      break;
-    case hasPriority(request.query):
-      invalidColumn = "Todo Priority";
-      getTodosQuery = `
-          select * from todo where todo like '%${search_q}%' and priority='${priority}';`;
-      break;
-    case hasDueDate(request.query):
-      invalidColumn = "Due Date";
-      getTodosQuery = `
-        select * from todo where todo like '%${search_q}%' and due_date=${dueDate};`;
-      break;
-    default:
-      getTodosQuery = `
-        select * from todo where todo like '%${search_q}%';`;
-  }
-
-  data = await database.all(getTodosQuery);
-  if ((data = "")) {
-    response.status(400);
-    response.send(`Invalid ${invalidColumn}`);
-  } else {
-    response.send(data);
-  }
-});
 */
 module.exports = app;

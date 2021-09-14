@@ -59,3 +59,11 @@ Content-Type: application/json
   "category": "HOME",
   "dueDate": "2021-02-22"
 }
+
+###
+
+PUT http://localhost:3000/todos/2/
+Content-Type: application/json
+{
+  "status": "DONE"
+}

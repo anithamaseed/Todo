@@ -162,15 +162,16 @@ app.get("/todos/:todoId/", async (request, response) => {
 //API 3
 
 const convertDateObjToFormatDateObj = (dbObj) => {
-  return format(new Date(dbObj), "yyyy - MM - dd");
+  return format(new Date(dbObj), "yyyy-MM-dd");
 };
 
 app.get("/agenda/", async (request, response) => {
   const { date } = request.query;
-  let formatDate = convertDateObjToFormatDateObj(date);
-  if (isValid(new Date(formatDate))) {
+
+  if (isValid(new Date(date))) {
+    let formatDate = convertDateObjToFormatDateObj(date);
     const getTodoBasedOnDate = `
-    select * from todo where due_date like ${formatDate};`;
+    select * from todo where due_date='${formatDate}';`;
     let getTodo = await database.all(getTodoBasedOnDate);
     response.send(
       getTodo.map((each) => convertTodoDbObjectToResponseObject(each))
@@ -197,21 +198,26 @@ app.post("/todos/", async (request, response) => {
     response.status(400);
     response.send("Invalid Todo Category");
   }
+  if (!isValid(new Date(dueDate))) {
+    response.status(400);
+    response.send("Invalid Due Date");
+  }
   if (
     (priority === "HIGH" || priority === "MEDIUM" || priority === "LOW") &&
     (status === "TO DO" || status === "IN PROGRESS" || status === "DONE") &&
-    (category === "WORK" || category === "HOME" || category === "LEARNING")
+    (category === "WORK" || category === "HOME" || category === "LEARNING") &&
+    isValid(new Date(dueDate))
   ) {
+    let formatDate = convertDateObjToFormatDateObj(dueDate);
     const insertNewTodo = `
   insert into todo(id, todo, priority, status, category, due_date) 
-  values(${id}, "${todo}", "${priority}", "${status}", "${category}", "${dueDate}");`;
+  values(${id}, "${todo}", "${priority}", "${status}", "${category}", "${formatDate}");`;
     await database.run(insertNewTodo);
     response.send("Todo Successfully Added");
   }
 });
 
 //API 5
-
 app.put("/todos/:todoId/", async (request, response) => {
   const { todoId } = request.params;
   let updateColumn = "";
@@ -232,6 +238,53 @@ app.put("/todos/:todoId/", async (request, response) => {
     case requestBody.dueDate !== undefined:
       updateColumn = "Due Date";
       break;
+  }
+  if (
+    (requestBody.priority !== undefined &&
+      (requestBody.priority === "HIGH" ||
+        requestBody.priority === "MEDIUM" ||
+        requestBody.priority === "LOW")) ||
+    (requestBody.category !== undefined &&
+      (requestBody.category === "WORK" ||
+        requestBody.category === "HOME" ||
+        requestBody.category === "LEARNING")) ||
+    (requestBody.status !== undefined &&
+      (requestBody.status === "TO DO" ||
+        requestBody.status === "IN PROGRESS" ||
+        requestBody.status === "DONE")) ||
+    requestBody.todo !== undefined
+  ) {
+    const previousTodoQuery = `
+    SELECT
+      *
+    FROM
+      todo
+    WHERE 
+      id = ${todoId};`;
+    const previousTodo = await database.get(previousTodoQuery);
+
+    const {
+      todo = previousTodo.todo,
+      priority = previousTodo.priority,
+      status = previousTodo.status,
+      category = previousTodo.category,
+      dueDate = previousTodo.dueDate,
+    } = request.body;
+
+    const updateTodoQuery = `
+    UPDATE
+      todo
+    SET
+      todo='${todo}',
+      priority='${priority}',
+      status='${status}',
+      category='${category}',
+      due_date='${dueDate}',
+    WHERE
+      id = ${todoId};`;
+
+    await database.run(updateTodoQuery);
+    response.send(`${updateColumn} Updated`);
   }
   if (
     requestBody.priority !== undefined &&
@@ -260,42 +313,12 @@ app.put("/todos/:todoId/", async (request, response) => {
     response.status(400);
     response.send("Invalid Todo Category");
   }
-
   if (
-    (requestBody.priority !== undefined &&
-      (requestBody.priority === "HIGH" ||
-        requestBody.priority === "MEDIUM" ||
-        requestBody.priority === "LOW")) ||
-    (requestBody.category !== undefined &&
-      (requestBody.category === "WORK" ||
-        requestBody.category === "HOME" ||
-        requestBody.category === "LEARNING")) ||
-    (requestBody.status !== undefined &&
-      (requestBody.status === "TO DO" ||
-        requestBody.status === "IN PROGRESS" ||
-        requestBody.status === "DONE"))
+    requestBody.dueDate !== undefined &&
+    !isValid(new Date(requestBody.dueDate))
   ) {
-    const previousTodoQuery = `
-  select * from todo where id=${todoId};`;
-    const previousTodo = await database.get(previousTodoQuery);
-    const {
-      todo = previousTodo.todo,
-      priority = previousTodo.priority,
-      status = previousTodo.status,
-      category = previousTodo.category,
-      dueDate = previousTodo.dueDate,
-    } = request.body;
-
-    const updateTodoQuery = `
-  update todo set todo='${todo}',
-  priority='${priority}'
-  status='${status}'
-  category='${category}'
-  due_date='${date}'
-  where id=${todoId};`;
-
-    await database.run(updateTodoQuery);
-    response.send(`${updateColumn} Updated`);
+    response.status(400);
+    response.send("Invalid Due Date");
   }
 });
 
